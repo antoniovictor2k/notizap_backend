@@ -1,0 +1,71 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Diretórios de dependências
+node_modules/
+jspm_packages/
+web_modules/
+
+# Variáveis de ambiente (IMPORTANTE: Nunca commite suas chaves de API/Senhas)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Builds e diretórios compilados
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Cobertura de testes (Coverage)
+coverage/
+*.lcov
+.nyc_output/
+
+# Caches diversos
+.npm
+.eslintcache
+.stylelintcache
+.tsbuildinfo
+.cache/
+.parcel-cache/
+
+# IDEs e Editores
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Arquivos de Sistema Operacional
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Histórico do REPL do Node
+.node_repl_history
+
+# Saída do 'npm pack'
+*.tgz
+
+# Arquivo de integridade do Yarn
+.yarn-integrity
