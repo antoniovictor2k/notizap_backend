@@ -1,8 +1,12 @@
 // src/controllers/whatsapp.controller.js
 // Camada HTTP: valida input, chama o service, formata resposta
 
-import * as whatsappService from '../services/whatsapp.service.js';
-import logger from '../utils/logger.js';
+import * as whatsappService from "../services/whatsapp.service.js";
+import logger from "../utils/logger.js";
+// Adicione o import no topo do arquivo (usando ES Modules)
+import qrcode from "qrcode-terminal";
+import terminalImage from 'terminal-image';
+// Se usar CommonJS, seria: const qrcode = require('qrcode-terminal');
 
 // ─── CONNECT ──────────────────────────────────────────────────────────────────
 
@@ -11,30 +15,34 @@ import logger from '../utils/logger.js';
  * Inicia a sessão e retorna o QR code em base64.
  * Se já estiver conectado, retorna o status atual.
  */
+
 export async function connect(req, res) {
   const { uid: userId } = req.user;
 
   try {
     const session = await whatsappService.createSession(userId);
 
-    // Sessão já estava aberta
     if (session.status === 'open') {
-      return res.json({
-        status: 'open',
-        message: 'WhatsApp já conectado.',
-        qr: null,
-      });
+      return res.json({ status: 'open', message: 'WhatsApp já conectado.', qr: null });
     }
 
-    // Aguarda até 8s para o QR ser gerado (event-driven)
     const qr = await waitForQR(session, 8000);
+
+    if (session.qrCode) {
+      // 1. EXIBE NO TERMINAL (Usando o texto puro)
+      qrcode.generate(session.qrCode, { small: true }, function (qrcode) {
+        console.log('\n📱 Escaneie o QR Code abaixo no terminal:\n');
+        console.log(qrcode);
+      });
+
+     
+    }
 
     return res.json({
       status: session.status,
-      qr: qr ?? null,
-      message: qr
-        ? 'Escaneie o QR code com seu WhatsApp.'
-        : 'Sessão iniciada. QR ainda sendo gerado — tente GET /status.',
+      qrBase64: qr ?? null,
+      qrCode: session.qrCode ?? null,
+      message: qr ? 'Escaneie o QR code com seu WhatsApp.' : 'Gerando...',
     });
   } catch (err) {
     logger.error({ err, userId }, 'Erro ao conectar sessão');
@@ -56,7 +64,8 @@ export function status(req, res) {
 
   return res.json({
     status: sessionStatus,
-    qr: session?.qrBase64 ?? null,
+    qrBase64: session?.qrBase64 ?? null,
+    qrCode: session?.qrCode ?? null,
     pairingCode: session?.pairingCode ?? null,
   });
 }
@@ -76,19 +85,19 @@ export async function pairingCode(req, res) {
   if (!phone) {
     return res.status(400).json({
       error: 'Campo "phone" é obrigatório.',
-      example: { phone: '5582999999999' },
+      example: { phone: "5582999999999" },
     });
   }
 
   if (!whatsappService.validateNumber(phone)) {
-    return res.status(400).json({ error: 'Número de telefone inválido.' });
+    return res.status(400).json({ error: "Número de telefone inválido." });
   }
 
   try {
     const code = await whatsappService.requestPairingCode(userId, phone);
     return res.json({ pairingCode: code });
   } catch (err) {
-    logger.warn({ err: err.message, userId }, 'Erro ao gerar pairing code');
+    logger.warn({ err: err.message, userId }, "Erro ao gerar pairing code");
     return res.status(400).json({ error: err.message });
   }
 }
@@ -109,16 +118,16 @@ export async function send(req, res) {
   if (!number || !message) {
     return res.status(400).json({
       error: 'Campos "number" e "message" são obrigatórios.',
-      example: { number: '5582999999999', message: 'Olá!' },
+      example: { number: "5582999999999", message: "Olá!" },
     });
   }
 
-  if (typeof message !== 'string' || message.trim().length === 0) {
-    return res.status(400).json({ error: 'Mensagem não pode ser vazia.' });
+  if (typeof message !== "string" || message.trim().length === 0) {
+    return res.status(400).json({ error: "Mensagem não pode ser vazia." });
   }
 
   if (!whatsappService.validateNumber(number)) {
-    return res.status(400).json({ error: 'Número de telefone inválido.' });
+    return res.status(400).json({ error: "Número de telefone inválido." });
   }
 
   try {
@@ -127,13 +136,13 @@ export async function send(req, res) {
     return res.json({
       success: true,
       to: whatsappService.normalizeNumber(number),
-      message: 'Mensagem enviada com sucesso.',
+      message: "Mensagem enviada com sucesso.",
     });
   } catch (err) {
-    logger.error({ err, userId, number }, 'Erro ao enviar mensagem');
+    logger.error({ err, userId, number }, "Erro ao enviar mensagem");
 
     // Rate limit — HTTP 429
-    if (err.message.includes('Limite de')) {
+    if (err.message.includes("Limite de")) {
       return res.status(429).json({ error: err.message });
     }
 
@@ -157,7 +166,8 @@ function waitForQR(session, timeoutMs = 8000) {
 
     const check = () => {
       if (session.qrBase64) return resolve(session.qrBase64);
-      if (session.status === 'open') return resolve(null);
+      if (session.qrCode) return resolve(session.qrCode);
+      if (session.status === "open") return resolve(null);
       if (Date.now() - start >= timeoutMs) return resolve(null);
       setTimeout(check, 300);
     };

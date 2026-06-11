@@ -1,0 +1,596 @@
+{
+  "info": {
+    "name": "NotiZap API",
+    "description": "Collection completa para testar o backend NotiZap — WhatsApp SaaS\n\n## Como usar\n1. Importe esta collection no Postman\n2. Vá em **Variables** e preencha `base_url` e `firebase_token`\n3. Para obter o `firebase_token`: no Firebase Console → Authentication → copie o ID Token do usuário (ou use o SDK no front)\n4. Siga a ordem: Connect → Status → Send",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "URL base do servidor. Em VPS, troque por http://SEU_IP:3000"
+    },
+    {
+      "key": "firebase_token",
+      "value": "COLE_SEU_FIREBASE_ID_TOKEN_AQUI",
+      "type": "string",
+      "description": "Firebase ID Token obtido via getIdToken() no front-end"
+    },
+    {
+      "key": "client_id",
+      "value": "",
+      "type": "string",
+      "description": "Preenchido automaticamente ao criar um cliente"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{firebase_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🟢 Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Verifica se o servidor está no ar. Não requer autenticação."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"ok\",\n  \"ts\": \"2024-01-15T19:52:03.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📲 WhatsApp",
+      "item": [
+        {
+          "name": "1. Conectar (gera QR)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.qr) {",
+                  "    console.log('✅ QR gerado! Copie o valor de \"qr\" e abra em: https://base64.guru/converter/decode/image');",
+                  "} else if (res.status === 'open') {",
+                  "    console.log('✅ WhatsApp já conectado!');",
+                  "} else {",
+                  "    console.log('⏳ Aguardando QR... Chame GET /status em alguns segundos');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/whatsapp/connect",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "connect"]
+            },
+            "description": "Inicia a sessão WhatsApp para o usuário autenticado.\n\n**Resposta:**\n- `qr`: string base64 da imagem PNG do QR code\n- `status`: `connecting` | `open`\n\n**Para escanear o QR:**\nCopie o valor do campo `qr` e cole em https://base64.guru/converter/decode/image\n\nOu use no front-end:\n```html\n<img src=\"data:image/png;base64,...\" />\n```"
+          },
+          "response": [
+            {
+              "name": "200 — QR gerado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"connecting\",\n  \"qr\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...\",\n  \"message\": \"Escaneie o QR code com seu WhatsApp.\"\n}"
+            },
+            {
+              "name": "200 — Já conectado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"open\",\n  \"qr\": null,\n  \"message\": \"WhatsApp já conectado.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Status da Conexão",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "console.log('Status:', res.status);",
+                  "if (res.status === 'open') {",
+                  "    console.log('✅ Conectado! Pode enviar mensagens.');",
+                  "} else if (res.qr) {",
+                  "    console.log('📷 QR disponível. Escaneie!');",
+                  "} else {",
+                  "    console.log('⏳ Ainda conectando...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/whatsapp/status",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "status"]
+            },
+            "description": "Retorna o status atual da sessão WhatsApp.\n\n**Status possíveis:**\n- `not_found` — sessão não iniciada\n- `connecting` — aguardando scan do QR\n- `open` — conectado ✅\n- `close` — desconectado"
+          },
+          "response": [
+            {
+              "name": "200 — Conectado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"open\",\n  \"qr\": null,\n  \"pairingCode\": null\n}"
+            },
+            {
+              "name": "200 — Aguardando QR",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"connecting\",\n  \"qr\": \"data:image/png;base64,iVBORw0KGgo...\",\n  \"pairingCode\": null\n}"
+            },
+            {
+              "name": "200 — Sessão não existe",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"not_found\",\n  \"qr\": null,\n  \"pairingCode\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. Enviar Mensagem",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Mensagem enviada para:', res.to);",
+                  "} else if (pm.response.code === 429) {",
+                  "    console.log('⚠️ Rate limit atingido. Aguarde 1 minuto.');",
+                  "} else {",
+                  "    console.log('❌ Erro:', res.error);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"number\": \"5582999999999\",\n  \"message\": \"Olá! Esta é uma mensagem de teste do NotiZap 🚀\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/whatsapp/send",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "send"]
+            },
+            "description": "Envia uma mensagem de texto.\n\n**Anti-ban:** há um delay de 2–5s antes do envio. Aguarde a resposta.\n\n**Número:** informe com DDI. Exemplos:\n- `5582999999999` (Brasil, Alagoas)\n- `5511999999999` (Brasil, São Paulo)\n\n**Rate limit:** máx. 20 mensagens/minuto por usuário (configurável em `MSG_PER_MINUTE_LIMIT`)"
+          },
+          "response": [
+            {
+              "name": "200 — Enviada",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"to\": \"5582999999999\",\n  \"message\": \"Mensagem enviada com sucesso.\"\n}"
+            },
+            {
+              "name": "429 — Rate limit",
+              "status": "Too Many Requests",
+              "code": 429,
+              "body": "{\n  \"error\": \"Limite de 20 mensagens/minuto atingido. Aguarde.\"\n}"
+            },
+            {
+              "name": "400 — Número inválido",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Número de telefone inválido.\"\n}"
+            },
+            {
+              "name": "500 — WhatsApp desconectado",
+              "status": "Internal Server Error",
+              "code": 500,
+              "body": "{\n  \"error\": \"WhatsApp não está conectado para este usuário.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. Gerar Pairing Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"5582999999999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/whatsapp/pairing-code",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "pairing-code"]
+            },
+            "description": "Alternativa ao QR: gera um código de 8 dígitos para parear sem câmera.\n\n**Como usar no WhatsApp:**\nConfigurações → Aparelhos conectados → Conectar com número de telefone\n\n**Pré-requisito:** chame `/connect` primeiro para iniciar a sessão."
+          },
+          "response": [
+            {
+              "name": "200 — Código gerado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"pairingCode\": \"ABCD-1234\"\n}"
+            },
+            {
+              "name": "400 — Já conectado",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"WhatsApp já está conectado. Pairing code não é necessário.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👥 Clientes",
+      "item": [
+        {
+          "name": "Listar Clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients",
+              "host": ["{{base_url}}"],
+              "path": ["clients"]
+            },
+            "description": "Lista todos os clientes do usuário autenticado."
+          },
+          "response": [
+            {
+              "name": "200 — Lista",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"userId\": \"firebase-uid-aqui\",\n      \"name\": \"João Silva\",\n      \"phone\": \"5582999999999\",\n      \"email\": \"joao@email.com\",\n      \"notes\": \"Cliente VIP\",\n      \"createdAt\": \"2024-01-15T19:52:03.000Z\",\n      \"updatedAt\": \"2024-01-15T19:52:03.000Z\"\n    }\n  ],\n  \"total\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "Buscar Cliente por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            },
+            "description": "Busca um cliente específico pelo ID.\n\nO `client_id` é preenchido automaticamente ao criar um cliente (via script de test)."
+          },
+          "response": [
+            {
+              "name": "200 — Encontrado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": \"firebase-uid-aqui\",\n  \"name\": \"João Silva\",\n  \"phone\": \"5582999999999\",\n  \"email\": \"joao@email.com\",\n  \"notes\": \"Cliente VIP\",\n  \"createdAt\": \"2024-01-15T19:52:03.000Z\",\n  \"updatedAt\": \"2024-01-15T19:52:03.000Z\"\n}"
+            },
+            {
+              "name": "404 — Não encontrado",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"error\": \"Cliente não encontrado.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Criar Cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('client_id', res.id);",
+                  "    console.log('✅ Cliente criado! ID salvo em {{client_id}}:', res.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva\",\n  \"phone\": \"5582999999999\",\n  \"email\": \"joao@email.com\",\n  \"notes\": \"Cliente VIP — preferência por contato pela manhã\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/clients",
+              "host": ["{{base_url}}"],
+              "path": ["clients"]
+            },
+            "description": "Cria um novo cliente vinculado ao usuário autenticado.\n\n**Obrigatórios:** `name`, `phone`\n**Opcionais:** `email`, `notes`\n\nO ID gerado é salvo automaticamente na variável `{{client_id}}`."
+          },
+          "response": [
+            {
+              "name": "201 — Criado",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": \"firebase-uid-aqui\",\n  \"name\": \"João Silva\",\n  \"phone\": \"5582999999999\",\n  \"email\": \"joao@email.com\",\n  \"notes\": \"Cliente VIP\",\n  \"createdAt\": \"2024-01-15T19:52:03.000Z\",\n  \"updatedAt\": \"2024-01-15T19:52:03.000Z\"\n}"
+            },
+            {
+              "name": "400 — Campos obrigatórios ausentes",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Campos \\\"name\\\" e \\\"phone\\\" são obrigatórios.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Atualizar Cliente",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João Silva Atualizado\",\n  \"notes\": \"Agora prefere contato à tarde\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            },
+            "description": "Atualiza campos do cliente. Só os campos enviados são alterados (PATCH parcial)."
+          },
+          "response": [
+            {
+              "name": "200 — Atualizado",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"userId\": \"firebase-uid-aqui\",\n  \"name\": \"João Silva Atualizado\",\n  \"phone\": \"5582999999999\",\n  \"email\": \"joao@email.com\",\n  \"notes\": \"Agora prefere contato à tarde\",\n  \"createdAt\": \"2024-01-15T19:52:03.000Z\",\n  \"updatedAt\": \"2024-01-15T20:10:00.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deletar Cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["clients", "{{client_id}}"]
+            },
+            "description": "Remove o cliente. Retorna 204 sem body em caso de sucesso."
+          },
+          "response": [
+            {
+              "name": "204 — Removido",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "404 — Não encontrado",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"error\": \"Cliente não encontrado.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "💰 Pagamentos (preparado)",
+      "item": [
+        {
+          "name": "Criar PIX",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 29.90,\n  \"description\": \"NotiZap — Plano Básico\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/pix",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "pix"]
+            },
+            "description": "⚠️ **Desativado** — retorna 503 até que `MP_ENABLED=true` seja configurado.\n\nQuando ativado, retorna:\n- `id`: ID do pagamento no Mercado Pago\n- `pixCode`: código copia-e-cola\n- `qrBase64`: QR code do PIX\n- `expiresAt`: expiração (30 minutos)"
+          },
+          "response": [
+            {
+              "name": "503 — Pagamentos desativados",
+              "status": "Service Unavailable",
+              "code": 503,
+              "body": "{\n  \"error\": \"Pagamentos ainda não habilitados neste ambiente.\"\n}"
+            },
+            {
+              "name": "200 — PIX criado (quando ativado)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"123456789\",\n  \"pixCode\": \"00020126580014br.gov.bcb.pix...\",\n  \"qrBase64\": \"data:image/png;base64,iVBOR...\",\n  \"expiresAt\": \"2024-01-15T20:22:03.000Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Webhook Mercado Pago",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-signature",
+                "value": "ts=1705348323,v1=abc123def456",
+                "description": "Assinatura HMAC enviada pelo Mercado Pago"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"123456\",\n  \"type\": \"payment\",\n  \"data\": {\n    \"id\": \"987654321\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/payments/webhook",
+              "host": ["{{base_url}}"],
+              "path": ["payments", "webhook"]
+            },
+            "description": "Endpoint que o Mercado Pago chama ao confirmar pagamento.\n\n**Não requer** autenticação Firebase — validado via assinatura HMAC no header `x-signature`.\n\nConfigure esta URL no painel do Mercado Pago: Seu App → Webhooks → URL de notificação"
+          },
+          "response": [
+            {
+              "name": "200 — Recebido",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"received\": true,\n  \"processed\": false\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔒 Erros de Auth (exemplos)",
+      "item": [
+        {
+          "name": "Sem token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/whatsapp/status",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "status"]
+            },
+            "description": "Demonstra o erro quando nenhum token é enviado."
+          },
+          "response": [
+            {
+              "name": "401 — Sem token",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Token de autenticação ausente ou malformado.\",\n  \"hint\": \"Envie o header: Authorization: Bearer <token>\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Token inválido",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "token.invalido.aqui",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/whatsapp/status",
+              "host": ["{{base_url}}"],
+              "path": ["whatsapp", "status"]
+            },
+            "description": "Demonstra o erro quando o token é inválido ou expirado."
+          },
+          "response": [
+            {
+              "name": "401 — Token inválido",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Token inválido.\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
